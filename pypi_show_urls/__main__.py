@@ -122,8 +122,7 @@ def main():
     # Should we run in verbose mode
     verbose = args.verbose
 
-    session = requests.session()
-    session.verify = False
+    session = requests.sessions.Session()
 
     for package in packages:
         print("")
