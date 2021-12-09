@@ -114,7 +114,7 @@ def main():
         requirements = {}
         for filename in files:
             with open(filename) as reqs_file:
-                reqs = reqs_file.readlines()
+                reqs = reqs_file.read().splitlines()
                 for req in reqs:
                     requirements.setdefault(req, []).append(filename)
                     packages.append(req)
