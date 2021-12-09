@@ -14,27 +14,28 @@
 import argparse
 import itertools
 import sys
-import urlparse
-import xmlrpclib
+try:  # for python 2
+    import urlparse
+    import xmlrpclib
+except ImportError:
+    import urllib.parse
+    import xmlrpc.client
 
 import html5lib
 import requests
 
 from pkg_resources import safe_name
-from pip.req import parse_requirements
 from setuptools.package_index import distros_for_url
 
 
 def installable(project, url):
     normalized = safe_name(project).lower()
-    return bool([dist for dist in distros_for_url(url) if
-                        safe_name(dist.project_name).lower() == normalized])
+    return bool([dist for dist in distros_for_url(url) if safe_name(dist.project_name).lower() == normalized])
 
 
 def version_for_url(project, url):
     normalized = safe_name(project).lower()
-    return [dist for dist in distros_for_url(url) if
-                safe_name(dist.project_name).lower() == normalized][0].version
+    return [dist for dist in distros_for_url(url) if safe_name(dist.project_name).lower() == normalized][0].version
 
 
 def process_page(html, package, url, verbose, requirements):
@@ -53,11 +54,10 @@ def process_page(html, package, url, verbose, requirements):
 
             if installable(package, absolute_link):
                 # If we have a requirements mapping, make sure the candidate
-                #   we found matches atleast one of the specs
+                #   we found matches at least one of the specs
                 if requirements is not None:
                     version = version_for_url(package, absolute_link)
-                    if not any([version in req
-                                            for req in requirements[package]]):
+                    if not any([version in req for req in requirements[package]]):
                         continue
 
                 if verbose:
@@ -65,7 +65,7 @@ def process_page(html, package, url, verbose, requirements):
                 installable_.add((url, absolute_link))
 
     if not verbose:
-        print("  %s Candiates from %s" % (len(installable_), url))
+        print("  %s Candidates from %s" % (len(installable_), url))
 
     return installable_
 
@@ -73,24 +73,22 @@ def process_page(html, package, url, verbose, requirements):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true")
+    parser.add_argument("-i", "--index-url", dest="index_url", action="store_true",
+                        default="https://pypi.python.org/pypi")
 
     group = parser.add_argument_group('type')
-    group.add_argument("-p", "--packages",
-                                    dest="is_packages", action="store_true")
+    group.add_argument("-p", "--packages", dest="is_packages", action="store_true")
     group.add_argument("-u", "--users", dest="is_users", action="store_true")
-    group.add_argument("-r", "--requirement-file",
-                                dest="requirement_file", action="store_true")
+    group.add_argument("-r", "--requirement-file", dest="requirement_file", action="store_true")
 
     parser.add_argument("items", nargs="+")
 
     args = parser.parse_args()
 
-    if len(filter(None,
-                [args.is_packages, args.is_users, args.requirement_file])) > 1:
+    if len(filter(None, [args.is_packages, args.is_users, args.requirement_file])) > 1:
         return "Must specify only one of -u, -p, and -r"
 
-    if (not args.is_packages and not args.is_users
-                                                and not args.requirement_file):
+    if not args.is_packages and not args.is_users and not args.requirement_file:
         return "Must specify one of -u, -p, or -r"
 
     if args.is_packages:
@@ -100,26 +98,26 @@ def main():
     if args.is_users:
         # a list of users
         users = args.items
-        xmlrpc = xmlrpclib.ServerProxy("https://pypi.python.org/pypi")
+        if sys.version_info[0] < 3:
+            serverproxy = xmlrpclib.ServerProxy(args.index_url)
+        else:
+            serverproxy = xmlrpc.client.ServerProxy(args.index_url)
         packages = []
         for user in users:
-            packages.extend([x[1] for x in xmlrpc.user_packages(user)
-                                                        if x[1] is not None])
+            packages.extend([x[1] for x in serverproxy.user_packages(user) if x[1] is not None])
 
     requirements = None
     if args.requirement_file:
-        class fakeopts:
-            default_vcs = ""
-            skip_requirements_regex = ""
-
         # a list of requirements files to process
         files = args.items
         packages = []
         requirements = {}
         for filename in files:
-            for req in parse_requirements(filename, options=fakeopts):
-                requirements.setdefault(req.name, []).append(req.req)
-                packages.append(req.name)
+            with open(filename) as reqs_file:
+                reqs = reqs_file.readlines()
+                for req in reqs:
+                    requirements.setdefault(req, []).append(filename)
+                    packages.append(req)
 
     # Should we run in verbose mode
     verbose = args.verbose
@@ -133,7 +131,7 @@ def main():
         print("========================" + ("=" * len(package)))
 
         # Grab the page from PyPI
-        url = "https://pypi.python.org/simple/%s/" % package
+        url = "%s/simple/%s/" % (args.index_url, package)
         resp = session.get(url)
         if resp.status_code == 404:
             continue
@@ -170,32 +168,24 @@ def main():
                 continue
 
             html = html5lib.parse(resp.content, namespaceHTMLElements=False)
-            installable_ |= process_page(html, package, link,
-                                                        verbose, requirements)
+            installable_ |= process_page(html, package, link, verbose, requirements)
 
         # Find the ones only available externally
-        internal = set()
-        external = set()
+        allversions = set()
         for candidate in installable_:
             version = version_for_url(package, candidate[1])
-            if (candidate[0] == url and
-                    urlparse.urlparse(candidate[1]).netloc
-                        == "pypi.python.org"):
-                internal.add(version)
-            else:
-                external.add(version)
+            allversions.add(version)
 
         # Display information
         if verbose:
             print("")
-            print("  Versions only available externally")
-            print("  ----------------------------------")
+            print("  Versions available")
+            print("  ------------------")
 
-            for version in (external - internal):
+            for version in allversions:
                 print("    " + version)
         else:
-            print("  %s versions only available externally" %
-                                                    len((external - internal)))
+            print("  %s versions available" % len(allversions))
 
 
 if __name__ == "__main__":

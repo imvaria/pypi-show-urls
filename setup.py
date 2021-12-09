@@ -3,14 +3,23 @@ from setuptools import setup, find_packages
 
 setup(
     name="pypi-show-urls",
-    version="2.1.1",
+    version="3.0.0",
 
     description="Shows all the installation candidates for a list of packages",
     long_description=open("README.rst").read(),
-    url="https://github.com/dstufft/pypi-show-urls",
+    url="https://github.com/imvaria/pypi-show-urls",
 
     author="Donald Stufft",
     author_email="donald@stufft.io",
+
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Developers',
+        'Topic :: Software Development :: Build Tools',
+        'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 3'
+    ],
 
     install_requires=[
         "html5lib",

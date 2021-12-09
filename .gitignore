@@ -23,3 +23,6 @@ pip-log.txt
 
 #Translations
 *.mo
+
+# IDE's
+.idea
