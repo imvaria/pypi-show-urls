@@ -85,7 +85,7 @@ def main():
 
     args = parser.parse_args()
 
-    if len(filter(None, [args.is_packages, args.is_users, args.requirement_file])) > 1:
+    if len(list(filter(None, [args.is_packages, args.is_users, args.requirement_file]))) > 1:
         return "Must specify only one of -u, -p, and -r"
 
     if not args.is_packages and not args.is_users and not args.requirement_file:
