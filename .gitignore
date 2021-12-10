@@ -26,3 +26,6 @@ pip-log.txt
 
 # IDE's
 .idea
+
+# Cache
+__pycache__
