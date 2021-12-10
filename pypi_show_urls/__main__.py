@@ -24,7 +24,7 @@ except ImportError:
 import html5lib
 import requests
 
-from pkg_resources import safe_name
+from pkg_resources import safe_name, parse_requirements
 from setuptools.package_index import distros_for_url
 
 
@@ -48,7 +48,10 @@ def process_page(html, package, url, verbose, requirements):
     for link in html.findall(".//a"):
         if "href" in link.attrib:
             try:
-                absolute_link = urlparse.urljoin(url, link.attrib["href"])
+                if sys.version_info[0] < 3:
+                    absolute_link = urlparse.urljoin(url, link.attrib["href"])
+                else:
+                    absolute_link = urllib.parse.urljoin(url, link.attrib["href"])
             except Exception:
                 continue
 
@@ -73,9 +76,9 @@ def process_page(html, package, url, verbose, requirements):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true")
-    parser.add_argument("-i", "--index-url", dest="index_url", action="store_true",
-                        default="https://pypi.python.org/pypi")
 
+    group = parser.add_argument_group('index')
+    group.add_argument("-i", "--index-url", dest="index_url", default="https://pypi.org", nargs='?')
     group = parser.add_argument_group('type')
     group.add_argument("-p", "--packages", dest="is_packages", action="store_true")
     group.add_argument("-u", "--users", dest="is_users", action="store_true")
@@ -114,10 +117,9 @@ def main():
         requirements = {}
         for filename in files:
             with open(filename) as reqs_file:
-                reqs = reqs_file.read().splitlines()
-                for req in reqs:
-                    requirements.setdefault(req, []).append(filename)
-                    packages.append(req)
+                for req in parse_requirements(reqs_file):
+                    requirements.setdefault(req.project_name, []).append(req)
+                    packages.append(req.project_name)
 
     # Should we run in verbose mode
     verbose = args.verbose
@@ -146,7 +148,10 @@ def main():
                             html.findall(".//a[@rel='homepage']")):
             if "href" in link.attrib:
                 try:
-                    absolute_link = urlparse.urljoin(url, link.attrib["href"])
+                    if sys.version_info[0] < 3:
+                        absolute_link = urlparse.urljoin(url, link.attrib["href"])
+                    else:
+                        absolute_link = urllib.parse.urljoin(url, link.attrib["href"])
                 except Exception:
                     continue
 
